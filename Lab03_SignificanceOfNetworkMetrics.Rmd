@@ -1,0 +1,202 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+# imports
+
+library(igraph)
+
+# functions
+
+# Switching Model: used to randomly rewire the edges of a graph (lecture 4, slide 22)
+# E - number of edges
+# Q - parameter (to be optimized)
+# Steps:
+# 1. try to switch Q*E times
+# 2. only switch nodes from edges if no loops and redundant edges are contained
+# 3. count number of failures
+switching_model <- function(graph, print) {
+  success <- 0
+  failure <- 0
+  edges   <- as_edgelist(graph, names=FALSE)
+  adj_mat <- as_adjacency_matrix(graph, names=FALSE, type="both")
+  adj_mat <- as.matrix(adj_mat)
+  # example adj_mat (nodes: 1,2,3; 1 indicates an edge and 0 not)
+  #   1 2 3
+  # 1 0 1 1
+  # 2 1 0 0
+  # 3 1 0 0
+  
+  E <- nrow(edges)
+  Q <- log(E) # coupon collector's problem ==> Prof wants it to be >= 10
+  if (Q < 10) {
+    Q <- 10
+  }
+  QE <- floor(Q * E)
+  
+  # get two samples of edges to switch their nodes
+  edge_sample1 <- sample(1:E, QE, replace=TRUE) # get QE edges, one can be picked multiple times
+  edge_sample2 <- sample(1:E, QE, replace=TRUE) # get QE edges, one can be picked multiple times
+  
+  for (i in seq(1, QE)) {
+    # select two edges from the two edge samples
+    edge1 <- edges[edge_sample1[i], ]
+    edge2 <- edges[edge_sample2[i], ]
+    
+    # check if all edges are different (no loops and no redundant edges)
+    if (sum( duplicated( c(edge1[1], edge1[2], edge2[1], edge2[2]) ) ) == 0 && # checks loops and all different
+        adj_mat[edge1[1], edge2[2]] == 0 &&                     # checks for redundant edges
+        adj_mat[edge2[1], edge1[2]] == 0 &&                     # checks for redundant edges
+        adj_mat[edge1[2], edge2[1]] == 0 &&                     # checks for redundant edges
+        adj_mat[edge2[2], edge1[1]] == 0) {                     # checks for redundant edges
+      
+      # remove old edges from adjacency matrix
+      adj_mat[edge1[1], edge1[2]] <- 0
+      adj_mat[edge2[1], edge2[2]] <- 0
+      adj_mat[edge1[2], edge1[1]] <- 0
+      adj_mat[edge2[2], edge2[1]] <- 0
+      
+      # switch edges
+      tmp      <- edge1[2]
+      edge1[2] <- edge2[2]
+      edge2[2] <- tmp
+      
+      # reassign edges to graph (not really because only to edge list)
+      edges[edge_sample1[i], ] <- edge1
+      edges[edge_sample2[i], ] <- edge2
+      
+      # set new edges for adjacency matrix
+      adj_mat[edge1[1], edge1[2]] <- 1
+      adj_mat[edge2[1], edge2[2]] <- 1
+      adj_mat[edge1[2], edge1[1]] <- 1
+      adj_mat[edge2[2], edge2[1]] <- 1
+      
+      success <- success + 1
+    } else {
+      failure <- failure + 1
+    }
+  }
+  
+  if (print) {
+    print(sprintf("E: %i, Q: %f, QE: %f", E, Q, QE))
+    print(sprintf("Successes: %i, Failures: %i", success, failure))
+  }
+  
+  # return new graph using updated edge list
+  return(graph_from_edgelist(edges, directed=FALSE))
+}
+```
+
+```{r}
+# DONE: remove loops (nodes connected with themselves) before analysis
+# DONE: produce table with format of Table 1
+# TODO: compare difference of network metric x (clustering coefficient?)
+#       between real network (from tar.gz) and null hypothesis
+# -> 2 different null hypothesis:
+#    * Erdös-Renyi graph with same number of vertices and edges as the real network
+#      (are given in first line of language txts)
+#    * randomized graph with same degree sequence as the real network
+#      (randomization with switching model and coupon collector's problem)
+# -> use monte carlo method to evaluate p-value
+# TODO: produce table with format of Table 2
+
+# create empty table for overview data of each language 
+data_overview <- data.frame(Language=character(),
+                            N=integer(),
+                            E=integer(),
+                            k=double(),
+                            delta=double(),
+                            stringsAsFactors=FALSE)
+
+# create empty table for metrics of each language and graph type 
+metrics_data  <- data.frame(Language=character(),
+                            Metric=double(),
+                            "p (binomial)"=double(),
+                            "p (switching)"=double(),
+                            stringsAsFactors=FALSE)
+
+main <- function(lang, filename) {
+  # SECTION: load data
+  raw_data <- read.table(filename, header=FALSE, quote="")
+  data     <- raw_data[raw_data$V1 != raw_data$V2, ] # remove loops (nodes with an edge to themselves)
+  print(sprintf("removed %i loops", dim(raw_data)[1] - dim(data)[1]))
+  
+  data <- data[-1, ] # remove the first row from the table since it contains N & E instead of characters
+  #print(data)
+  
+  # SECTION: create networks
+  # -> real network
+  real_network   <- graph.data.frame(data)
+  degree_sequnce <- degree(real_network)
+  # create Global Clustering Coefficient (gcc)
+  gcc_real <- transitivity(real_network, type="average")
+  
+  N <- length(V(real_network))
+  E <- length(E(real_network))
+  print(sprintf("Nodes: %i, Edges: %i", N, E))
+  
+  # -> Erdös-Renyi
+  # returns global clustering coefficient using igraph transitivity function
+  er_graph <- function(N, E) {
+    er_network <- sample_gnm(N, E, directed=FALSE, loops=FALSE)
+    return(transitivity(er_network, type="average"))
+  }
+  
+  # -> randomized graph
+  # returns global clustering coefficient using igraph transitivity function
+  random_graph <- function(degree, print) {
+    rg_network <- sample_degseq(degree)       # build network based on degree sequence
+    rg_rewired <- switching_model(rg_network, print) # randomly rewire edges
+    
+    return(transitivity(rg_rewired, type="average"))
+  }
+  
+  # SECTION: Monte Carlo (lecture 4, slide 9)
+  f_val_random <- 0 # counts the number of times where xNH >= x (x = gcc)
+  f_val_er     <- 0 # counts the number of times where xNH >= x (x = gcc)
+  T <- 20         # parameter so that 1/T << alpha (alpha = 0.05 -> 5%) ==> Prof wants it to be >= 20
+  for (i in 1:T) {
+    xNH_random <- random_graph(degree_sequnce, print=(i<=1))
+    xNH_er     <- er_graph(N, E)
+    
+    if (xNH_random >= gcc_real) { # gcc_real = x
+      f_val_random <- f_val_random + 1
+    }
+    
+    if (xNH_er >= gcc_real) { # gcc_real = x
+      f_val_er <- f_val_er + 1
+    }
+  }
+  p_val_random <- f_val_random / T
+  p_val_er     <- f_val_er / T
+  
+  # SECTION: add data to tables
+  # add overview data of current language to table
+  data_overview[nrow(data_overview) + 1,] <<- list(lang,
+                                                   N,
+                                                   E,
+                                                   2 * E / N,
+                                                   2 * E / (N * (N - 1)))
+
+  # add metrics data of current language to table
+  metrics_data[nrow(metrics_data) + 1,]   <<- list(lang,
+                                                   gcc_real,
+                                                   p_val_er,
+                                                   p_val_random)
+}
+
+source = read.table("./list.txt", 
+         header = TRUE,
+         as.is = c("language","file")
+        )
+for (i in 1:nrow(source)) {
+  main(source$language[i], source$file[i]) # check your path
+  break
+}
+
+# Print Tables
+data_overview
+metrics_data
+```

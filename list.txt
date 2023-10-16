@@ -1,0 +1,11 @@
+language file
+Arabic ./data/Arabic_syntactic_dependency_network.txt
+Basque ./data/Basque_syntactic_dependency_network.txt
+Catalan ./data/Catalan_syntactic_dependency_network.txt
+Chinese ./data/Chinese_syntactic_dependency_network.txt
+Czech ./data/Czech_syntactic_dependency_network.txt
+English ./data/English_syntactic_dependency_network.txt
+Greek ./data/Greek_syntactic_dependency_network.txt
+Hungarian ./data/Hungarian_syntactic_dependency_network.txt
+Italian ./data/Italian_syntactic_dependency_network.txt
+Turkish ./data/Turkish_syntactic_dependency_network.txt
