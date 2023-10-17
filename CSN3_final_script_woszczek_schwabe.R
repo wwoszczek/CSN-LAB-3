@@ -1,11 +1,3 @@
----
-title: "R Notebook"
-output: html_notebook
----
-
-```{r}
-# imports
-
 library(igraph)
 
 # functions
@@ -21,7 +13,7 @@ switching_model <- function(graph, print) {
   success <- 0
   failure <- 0
   edges   <- as_edgelist(graph, names=FALSE)
-  adj_mat <- as_adjacency_matrix(graph, names=FALSE, type="both")
+  adj_mat <- as_adjacency_matrix(graph, names=FALSE, type="both", sparse = FALSE)
   # adj_mat <- as.matrix(adj_mat)
   # example adj_mat (nodes: 1,2,3; 1 indicates an edge and 0 not)
   #   1 2 3
@@ -46,7 +38,8 @@ switching_model <- function(graph, print) {
     edge2 <- edges[edge_sample2[i], ]
     
     # check if all edges are different (no loops and no redundant edges)
-    if (sum( duplicated( c(edge1[1], edge1[2], edge2[1], edge2[2]) ) ) == 0 && # checks loops and all different
+    if (edge1[1] != edge2[2] && 
+        edge2[1] != edge1[2] &&                                 # checks loops
         adj_mat[edge1[1], edge2[2]] == 0 &&                     # checks for redundant edges
         adj_mat[edge2[1], edge1[2]] == 0 &&                     # checks for redundant edges
         adj_mat[edge1[2], edge2[1]] == 0 &&                     # checks for redundant edges
@@ -87,12 +80,42 @@ switching_model <- function(graph, print) {
   # return new graph using updated edge list
   return(graph_from_edgelist(edges, directed=FALSE))
 }
-```
 
-```{r}
+
+transitivity_opt <- function (graph, sorting="None", M=NULL) {
+  if (is.null(M)) {
+    M <- ceiling(0.1 * length(V(graph)))
+  }
+  
+  if (sorting == "None") {
+    nodes <- V(graph)[1:M]
+  }
+  else if (sorting == "rand") {
+    nodes <- sample(V(graph))[1:M]
+  }
+  else if (sorting == "desc") {
+    df <- data.frame(name=as_ids(V(graph)), degree=degree(graph))
+    df <- df[order(-df$degree),]
+    nodes <- df$name[1:M]
+  }
+  else if (sorting == "asc") {
+    df <- data.frame(name=as_ids(V(graph)), degree=degree(graph))
+    df <- df[order(df$degree),]
+    nodes <- df$name[1:M]
+  }
+  
+  local_trans <- transitivity(graph, vids=nodes, type = "local")
+  # if degree(node) < 2, function returns NaN. It need to be replaced with 0
+  local_trans[is.nan(local_trans)] <- 0
+  
+  mean_local_transitivity_opt <- sum(local_trans) / M
+  return(mean_local_transitivity_opt)
+}
+
+
 # DONE: remove loops (nodes connected with themselves) before analysis
 # DONE: produce table with format of Table 1
-# TODO: compare difference of network metric x (clustering coefficient?)
+# DONE: compare difference of network metric x (clustering coefficient?)
 #       between real network (from tar.gz) and null hypothesis
 # -> 2 different null hypothesis:
 #    * Erdös-Renyi graph with same number of vertices and edges as the real network
@@ -100,7 +123,7 @@ switching_model <- function(graph, print) {
 #    * randomized graph with same degree sequence as the real network
 #      (randomization with switching model and coupon collector's problem)
 # -> use monte carlo method to evaluate p-value
-# TODO: produce table with format of Table 2
+# DONE: produce table with format of Table 2
 
 # create empty table for overview data of each language 
 data_overview <- data.frame(Language=character(),
@@ -130,11 +153,16 @@ main <- function(lang, filename) {
   # -> real network
   real_network   <- graph.data.frame(data)
   degree_sequnce <- degree(real_network)
-  # create Global Clustering Coefficient (gcc)
-  gcc_real <- transitivity_opt(real_network, sorting = "rand")
   
   N <- length(V(real_network))
   E <- length(E(real_network))
+  
+  # create Global Clustering Coefficient (gcc)
+  gcc_real <- transitivity(real_network, vids=V(real_network), type = "local")
+  # if degree(node) < 2, function returns NaN. It need to be replaced with 0
+  gcc_real[is.nan(gcc_real)] <- 0
+  gcc_real <- sum(gcc_real) / N
+  
   print(sprintf("Nodes: %i, Edges: %i", N, E))
   
   # -> Erdös-Renyi
@@ -179,7 +207,7 @@ main <- function(lang, filename) {
                                                    E,
                                                    2 * E / N,
                                                    2 * E / (N * (N - 1)))
-
+  
   # add metrics data of current language to table
   metrics_data[nrow(metrics_data) + 1,]   <<- list(lang,
                                                    gcc_real,
@@ -188,63 +216,16 @@ main <- function(lang, filename) {
 }
 
 source = read.table("./list.txt", 
-         header = TRUE,
-         as.is = c("language","file")
-        )
-for (i in c(1)) {
+                    header = TRUE,
+                    as.is = c("language","file")
+)
+start_time <- Sys.time()
+for (i in c(1, 2, 3, 4, 6, 7, 8, 9, 10)) {
   main(source$language[i], source$file[i]) # check your path
 }
+end_time <- Sys.time()
 
 # Print Tables
-data_overview
-metrics_data
-```
-
-```{r}
-transitivity_opt <- function (graph, sorting="None", M=NULL) {
-  if (is.null(M)) {
-      M <- ceiling(0.1 * length(V(graph)))
-  }
-  
-  if (sorting == "None") {
-    nodes <- V(graph)[1:M]
-  }
-  else if (sorting == "rand") {
-    nodes <- sample(V(graph))[1:M]
-  }
-  else if (sorting == "desc") {
-    df <- data.frame(name=as_ids(V(graph)), degree=degree(graph))
-    df <- df[order(-df$degree),]
-    nodes <- df$name[1:M]
-  }
-  else if (sorting == "asc") {
-    df <- data.frame(name=as_ids(V(graph)), degree=degree(graph))
-    df <- df[order(df$degree),]
-    nodes <- df$name[1:M]
-  }
-  
-  local_trans <- transitivity(graph, vids=nodes, type = "local")
-  # if degree(node) < 2, function returns NaN. It need to be replaced with 0
-  local_trans[is.nan(local_trans)] <- 0
-  
-  mean_local_transitivity_opt <- sum(local_trans) / M
-  return(mean_local_transitivity_opt)
-}
-```
-
-DEBUG
-
-```{r}
-# Create or load your graph (replace with your graph object)
-graph <- make_graph("Zachary")
-# Get the adjacency matrix as a sparse matrix
-adj_matrix <- as_adjacency_matrix(graph, sparse = TRUE)
-```
-
-```{r}
-adj_matrix
-```
-
-```{r}
-adj_matrix[1, 2] == 0
-```
+print(data_overview)
+print(metrics_data)
+print(end_time - start_time)
