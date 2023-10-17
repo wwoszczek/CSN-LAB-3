@@ -45,6 +45,54 @@ Significance of network metrics}
 \section{Results}
 
 
+\begin{table}[ht]
+\centering
+\begin{tabular}{lcccc}
+\hline
+Language & $N$ & $E$ & $ \langle k \rangle $ & $\delta$ \\
+\hline
+Arabic & 21 532 & 68 743 & 6.38 & 0.000297  \\
+Basque  & 12 207 & 25 541 & 4.18 & 0.000343  \\
+Catalan  & 36 865 & 197 074 & 10.69 & 0.000290  \\
+Chinese  & 40 298 & 180 925 & 8.97 & 0.000223 \\
+Czech  & 69 303 & 257 222 & 7.42 & 0.000107 \\
+English & 29 634 & 193 067 & 13.03 & 0.000440 \\
+Greek  & 13 283 & 43 961 & 6.61 & 0.000498 \\
+Hungarian  & 36 126 & 106 681 & 5.90 & 0.000163 \\
+Italian  & 14 726 & 55 954 & 7.60 & 0.000516 \\
+Turkish  & 20 409 & 45 620 & 4.47 & 0.000219 \\
+\hline
+\end{tabular}
+\caption{Summary of the properties of the degree sequences. $N$ is the number
+of vertices of the network, $E$ is the number of edges, $ \langle k \rangle = 2E/N$ is the mean
+degree and $\delta = 2E / (N (N-1))$ is the network density of edges.}
+\label{networks_summary}
+\end{table}
+
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{lcccc}
+\hline
+Language & $C_{WS}$ & $p$-value (binomial) & $p$-value (switching) & Failure ratio \\
+\hline
+Arabic & 0.188 & 0.0 & 0.0 & 25.6\% \\
+Basque & 0.047 & 0.0 & 0.95 & 12.1\% \\
+Catalan & 0.221 & 0.0 & 0.0 & 29.4\% \\
+Chinese & 0.170 & 0.0 & 0.0 & 22.9\% \\
+Czech & 0.122 & 0.0 & NaN & NaN \\
+English & 0.235 & 0.0 & 0.0 & 32.0\% \\
+Greek & 0.134 & 0.0 & 0.70 & 22.3\% \\
+Hungarian & 0.051 & 0.0 & 1.0 & 15.3\% \\
+Italian & 0.144 & 0.0 & 1.0 & 25.3\% \\
+Turkish & 0.234 & 0.0 & 0.30 & 32.3\% \\
+\hline
+\end{tabular}
+\caption{Mean local clustering coefficients ($C_{WS}$), p-values for null hypotheses regarding binomial \& switching model and switching failure ratio (\% of failed switches, when samples did not satisfy the required conditions) for all the languages given.}
+\label{pvals}
+\end{table}
+
+
 
 \section{Discussion}
 
